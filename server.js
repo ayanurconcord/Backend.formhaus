@@ -32,6 +32,10 @@ const {
   getUserByEmail,
   getUserById,
   getUsers,
+  getCategories, createCategory, updateCategory, deleteCategory,
+  getProducts, createProduct, updateProduct, deleteProduct,
+  createOrder, getOrders, updateOrderStatus,
+  getUsers,
   createUser,
   updateUserPassword,
   deleteUser,
@@ -129,6 +133,24 @@ app.post('/api/auth/login', async (req, res, next) => {
   });
   } catch (error) { return next(error); }
 });
+
+
+app.get('/api/shop/categories', async (_req,res,next)=>{try{return res.json({categories:await getCategories()});}catch(e){return next(e);}});
+app.get('/api/shop/products', async (req,res,next)=>{try{const all=await getProducts();const filtered=req.query.category?all.filter(p=>String(p.category_id)===String(req.query.category)):all;return res.json({products:filtered});}catch(e){return next(e);}});
+app.post('/api/shop/orders', async (req,res,next)=>{try{const order=await createOrder(req.body||{});return res.status(201).json({success:true,order});}catch(e){return next(e);}});
+
+app.get('/api/admin/categories',authMiddleware,async(_req,res,next)=>{try{return res.json({categories:await getCategories({includeHidden:true})});}catch(e){return next(e);}});
+app.post('/api/admin/categories',authMiddleware,async(req,res,next)=>{try{const {name}=req.body||{};if(!name)return res.status(400).json({message:'Category name is required.'});return res.status(201).json({success:true,category:await createCategory(req.body)});}catch(e){return next(e);}});
+app.put('/api/admin/categories/:id',authMiddleware,async(req,res,next)=>{try{const category=await updateCategory(req.params.id,req.body||{});if(!category)return res.status(404).json({message:'Category not found.'});return res.json({success:true,category});}catch(e){return next(e);}});
+app.delete('/api/admin/categories/:id',authMiddleware,async(req,res,next)=>{try{const ok=await deleteCategory(req.params.id);if(!ok)return res.status(404).json({message:'Category not found.'});return res.json({success:true});}catch(e){return next(e);}});
+
+app.get('/api/admin/products',authMiddleware,async(_req,res,next)=>{try{return res.json({products:await getProducts({includeHidden:true})});}catch(e){return next(e);}});
+app.post('/api/admin/products',authMiddleware,async(req,res,next)=>{try{return res.status(201).json({success:true,product:await createProduct(req.body||{})});}catch(e){return next(e);}});
+app.put('/api/admin/products/:id',authMiddleware,async(req,res,next)=>{try{const product=await updateProduct(req.params.id,req.body||{});if(!product)return res.status(404).json({message:'Product not found.'});return res.json({success:true,product});}catch(e){return next(e);}});
+app.delete('/api/admin/products/:id',authMiddleware,async(req,res,next)=>{try{const ok=await deleteProduct(req.params.id);if(!ok)return res.status(404).json({message:'Product not found.'});return res.json({success:true});}catch(e){return next(e);}});
+
+app.get('/api/admin/orders',authMiddleware,async(_req,res,next)=>{try{return res.json({orders:await getOrders()});}catch(e){return next(e);}});
+app.put('/api/admin/orders/:id/status',authMiddleware,async(req,res,next)=>{try{const order=await updateOrderStatus(req.params.id,req.body.status);if(!order)return res.status(404).json({message:'Order not found.'});return res.json({success:true,order});}catch(e){return next(e);}});
 
 app.get('/api/site', async (_req, res, next) => {
   try { return res.json(await getWebsitePayload()); } catch (error) { return next(error); }
