@@ -258,7 +258,7 @@ app.post('/api/admin/media/upload', authMiddleware, upload.array('files', 12), a
         size: file.size
       };
     }));
-    const files = addMedia(uploaded);
+    const files = await addMedia(uploaded);
     return res.status(201).json({ success: true, files });
   } catch (error) {
     return next(error);
