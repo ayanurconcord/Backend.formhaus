@@ -251,7 +251,7 @@ const updateMedia = async (id, payload = {}) => {
     replaceIn(state.services, ['image', 'image_url']);
     replaceIn(state.homepage_sections, ['image_url']);
     replaceIn([state.settings || {}], ['logo_url', 'favicon_url']);
-    (state.projects || []).forEach((row) => { if (Array.isArray(row.gallery)) row.gallery = row.gallery.map(replaceValue); });
+    (state.projects || []).forEach((row) => { if (Array.isArray(row.gallery)) row.gallery = row.gallery.map(replaceValue); else if (typeof row.gallery === 'string') { try { row.gallery = JSON.stringify(JSON.parse(row.gallery).map(replaceValue)); } catch {} } });
     item.path = nextPath;
     item.url = nextUrl;
     item.pathname = payload.pathname ?? item.pathname;
