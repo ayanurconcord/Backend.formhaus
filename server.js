@@ -354,7 +354,7 @@ app.get('/api/admin/me', authMiddleware, async (req, res) => {
 
 app.use((error, _req, res, _next) => {
   console.error(error);
-  res.status(500).json({ message: error.message || 'Something went wrong.' });
+  res.status(error.status || 500).json({ message: error.message || 'Something went wrong.' });
 });
 
 app.listen(PORT, () => {
