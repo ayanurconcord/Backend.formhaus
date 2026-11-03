@@ -43,7 +43,7 @@
    <button data-view="homepage"><span class="ico">▤</span>Homepage</button>
    <button data-view="projects"><span class="ico">▧</span>Projects</button>
    <button data-view="shop"><span class="ico">▣</span>Shop & products</button>
-   <button data-view="orders"><span class="ico">▤</span>Orders</button>
+   <button data-view="orders" id="ordersNav"><span class="ico">▤</span>Orders</button>
    <button data-view="services"><span class="ico">◇</span>Services</button>
    <button data-view="media"><span class="ico">▦</span>Media library</button>
    <button data-view="about"><span class="ico">✳</span>About page</button>
@@ -140,7 +140,7 @@ const safeUrl=v=>{try{const u=new URL(v,location.origin);return ['http:','https:
 const notify=(msg,type='ok')=>{const n=$('toast');n.textContent=msg;n.style.background=type==='error'?'#963f32':'#20231f';n.classList.add('show');clearTimeout(notify.timer);notify.timer=setTimeout(()=>n.classList.remove('show'),2800)};
 async function api(path,opts={}){const headers={...(opts.body instanceof FormData?{}:{'Content-Type':'application/json'}),...(opts.headers||{}),...(token()?{Authorization:'Bearer '+token()}:{})};const res=await fetch(API+path,{...opts,headers});let data={};try{data=await res.json()}catch{}if(!res.ok){if(res.status===401){logout();}throw new Error(data.message||'Something went wrong. Please try again.')}return data}
 function busy(btn,on,label){if(!btn)return;if(on){btn.dataset.old=btn.textContent;btn.disabled=true;btn.textContent=label||'Saving…'}else{btn.disabled=false;btn.textContent=btn.dataset.old||btn.textContent}}
-function showApp(user){state.user=user;$('loginScreen').classList.add('hidden');$('app').classList.remove('hidden');$('sideUser').textContent=user.name||user.email;$('topUser').textContent=user.email||''}
+function showApp(user){state.user=user;$('loginScreen').classList.add('hidden');$('app').classList.remove('hidden');$('sideUser').textContent=user.name||user.email;$('topUser').textContent=user.email||'';$('ordersNav').classList.toggle('hidden',user.role!=='admin')}
 function logout() {localStorage.removeItem('formhaus_token');state.user=null;$('app').classList.add('hidden');$('loginScreen').classList.remove('hidden')}
 function go(view){document.querySelectorAll('.view').forEach(n=>n.classList.toggle('hidden',n.id!=='view-'+view));document.querySelectorAll('#nav button').forEach(n=>n.classList.toggle('active',n.dataset.view===view));$('crumb').textContent=({overview:'Overview',homepage:'Homepage',projects:'Projects',services:'Services',media:'Media library',about:'About page',settings:'Website settings',users:'Team & access',shop:'Shop & products',orders:'Orders'})[view]||'Overview';window.scrollTo({top:0,behavior:'smooth'})}
 $('nav').addEventListener('click',e=>{const b=e.target.closest('[data-view]');if(b)go(b.dataset.view)});
