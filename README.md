@@ -24,14 +24,18 @@ Create or edit `.env`:
 
 ```env
 PORT=4000
-JWT_SECRET=formhaus-dev-secret
+JWT_SECRET=replace-with-a-long-random-secret
 CLIENT_URL=http://localhost:3000
 ```
 
-## Default admin account
+## Local development admin account
+
+A fresh local JSON datastore seeds a convenience admin account:
 
 - Email: `admin@formhaus.studio`
 - Password: `admin123`
+
+**Local development only.** Do not use these credentials in production. Production deployments must use a strong, unique `JWT_SECRET`, and the default JSON datastore is not durable on serverless hosting. A persistent database and production admin provisioning flow are still required before relying on the CMS in production.
 
 ## Admin dashboard
 
