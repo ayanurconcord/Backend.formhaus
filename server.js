@@ -148,8 +148,8 @@ app.post('/api/admin/products',authMiddleware,async(req,res,next)=>{try{return r
 app.put('/api/admin/products/:id',authMiddleware,async(req,res,next)=>{try{const product=await updateProduct(req.params.id,req.body||{});if(!product)return res.status(404).json({message:'Product not found.'});return res.json({success:true,product});}catch(e){return next(e);}});
 app.delete('/api/admin/products/:id',authMiddleware,async(req,res,next)=>{try{const ok=await deleteProduct(req.params.id);if(!ok)return res.status(404).json({message:'Product not found.'});return res.json({success:true});}catch(e){return next(e);}});
 
-app.get('/api/admin/orders',authMiddleware,async(_req,res,next)=>{try{return res.json({orders:await getOrders()});}catch(e){return next(e);}});
-app.put('/api/admin/orders/:id/status',authMiddleware,async(req,res,next)=>{try{const order=await updateOrderStatus(req.params.id,req.body.status);if(!order)return res.status(404).json({message:'Order not found.'});return res.json({success:true,order});}catch(e){return next(e);}});
+app.get('/api/admin/orders',authMiddleware,requireAdmin,async(_req,res,next)=>{try{return res.json({orders:await getOrders()});}catch(e){return next(e);}});
+app.put('/api/admin/orders/:id/status',authMiddleware,requireAdmin,async(req,res,next)=>{try{const order=await updateOrderStatus(req.params.id,req.body.status);if(!order)return res.status(404).json({message:'Order not found.'});return res.json({success:true,order});}catch(e){return next(e);}});
 
 app.get('/api/site', async (_req, res, next) => {
   try { return res.json(await getWebsitePayload()); } catch (error) { return next(error); }
