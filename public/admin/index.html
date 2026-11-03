@@ -60,7 +60,7 @@
         </div>
         <div class="field">
           <label>Password</label>
-          <input id="password" type="password" placeholder="admin123" />
+          <input id="password" type="password" placeholder="Enter your admin password" />
         </div>
         <button class="button" id="loginButton">Login</button>
         <p id="loginMessage" class="muted"></p>
@@ -138,7 +138,7 @@
     </div>
 
     <script>
-      const API = 'http://localhost:4000/api';
+      const API = `${window.location.origin}/api`;
       const getToken = () => localStorage.getItem('formhaus_token');
 
       const els = {
@@ -291,7 +291,7 @@
           <div class="item">
             <div class="muted">${item.filename}</div>
             <div class="muted">${item.kind} • ${item.size} bytes</div>
-            <img src="http://localhost:4000${item.path}" alt="${item.filename}" style="max-width: 160px; max-height: 160px; display:block; margin-top:8px; border-radius:10px;" />
+            <img src="${window.location.origin}${item.path}" alt="${item.filename}" style="max-width: 160px; max-height: 160px; display:block; margin-top:8px; border-radius:10px;" />
           </div>
         `).join('');
 
