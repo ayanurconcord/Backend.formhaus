@@ -278,6 +278,60 @@ const getUserById = async (id) => {
   return (state.users || []).find((user) => Number(user.id) === Number(id)) || null;
 };
 
+
+const getUsers = async () => {
+  const state = await readState();
+  return (state.users || []).map(({ password_hash, ...user }) => user).sort((a, b) => Number(a.id) - Number(b.id));
+};
+
+const createUser = async ({ name, email, password, role = 'editor' }) => {
+  const state = await readState();
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if ((state.users || []).some((user) => String(user.email).toLowerCase() === normalizedEmail)) {
+    const error = new Error('A user with this email already exists.');
+    error.status = 409;
+    throw error;
+  }
+  const nextId = (state.users || []).reduce((max, user) => Math.max(max, Number(user.id || 0)), 0) + 1;
+  const user = {
+    id: nextId,
+    name: String(name || '').trim(),
+    email: normalizedEmail,
+    password_hash: await bcrypt.hash(password, 12),
+    role: role === 'admin' ? 'admin' : 'editor',
+    token_version: 0,
+    created_at: new Date().toISOString()
+  };
+  state.users = [...(state.users || []), user];
+  await writeState(state);
+  const { password_hash, ...safeUser } = user;
+  return safeUser;
+};
+
+const updateUserPassword = async (id, password) => {
+  const state = await readState();
+  const user = (state.users || []).find((item) => Number(item.id) === Number(id));
+  if (!user) return null;
+  user.password_hash = await bcrypt.hash(password, 12);
+  user.token_version = Number(user.token_version || 0) + 1;
+  await writeState(state);
+  return true;
+};
+
+const deleteUser = async (id) => {
+  const state = await readState();
+  const target = (state.users || []).find((item) => Number(item.id) === Number(id));
+  if (!target) return false;
+  if (target.role === 'admin' && state.users.filter((item) => item.role === 'admin').length <= 1) {
+    const error = new Error('You cannot remove the only administrator.');
+    error.status = 400;
+    throw error;
+  }
+  state.users = state.users.filter((item) => Number(item.id) !== Number(id));
+  await writeState(state);
+  return true;
+};
+
 const getWebsitePayload = async () => {
   const state = await readState();
   const settings = state.settings || { ...defaultSettings };
@@ -347,6 +401,10 @@ module.exports = {
   saveAboutPage,
   getUserByEmail,
   getUserById,
+  getUsers,
+  createUser,
+  updateUserPassword,
+  deleteUser,
   getWebsitePayload,
   readState,
   writeState
