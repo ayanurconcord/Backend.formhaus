@@ -76,10 +76,12 @@ const upload = multer({
   }
 });
 
+const configuredClientOrigins = (process.env.CLIENT_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 const allowedOrigins = new Set([
-  process.env.CLIENT_URL,
+  ...configuredClientOrigins,
+  'https://frontendformhaus-1q7l7i9rz-formhaus1.vercel.app',
   ...(!isProduction ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
-].filter(Boolean));
+]);
 
 app.use(cors({
   credentials: true,
