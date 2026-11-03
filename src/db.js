@@ -399,7 +399,7 @@ const createOrder = async (payload) => {
   state.orders.push(order);await writeState(state);return order;
 };
 const getOrders = async () => (await readState()).orders||[];
-const updateOrderStatus = async (id,status) => {const allowed=['pending','confirmed','processing','shipped','completed','cancelled'];if(!allowed.includes(status)){const error=new Error('Invalid order status.');error.status=400;throw error;}const state=await readState();const order=(state.orders||[]).find(o=>Number(o.id)===Number(id));if(!order)return null;order.status=status;await writeState(state);return order;};
+const updateOrderStatus = async (id,status) => {const allowed=['pending','confirmed','processing','shipped','completed','cancelled'];if(!allowed.includes(status)){const error=new Error('Invalid order status.');error.status=400;throw error;}const state=await readState();const order=(state.orders||[]).find(o=>Number(o.id)===Number(id));if(!order)return null;if(status==='cancelled'&&order.status!=='cancelled'){for(const line of order.items||[]){const product=(state.products||[]).find(p=>Number(p.id)===Number(line.product_id));if(product)product.stock=Number(product.stock||0)+Number(line.quantity||0);}}if(order.status==='cancelled'&&status!=='cancelled'){for(const line of order.items||[]){const product=(state.products||[]).find(p=>Number(p.id)===Number(line.product_id));if(!product||Number(product.stock)<Number(line.quantity)){const error=new Error('Not enough stock to reopen this order.');error.status=409;throw error;}product.stock=Number(product.stock)-Number(line.quantity);}}order.status=status;await writeState(state);return order;};
 
 const getWebsitePayload = async () => {
   const state = await readState();
