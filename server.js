@@ -292,7 +292,7 @@ app.get('/api/admin/users', authMiddleware, requireAdmin, async (_req, res, next
 app.post('/api/admin/users', authMiddleware, requireAdmin, async (req, res, next) => {
   try {
     const { name, email, password, role } = req.body || {};
-    if (!name || !email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return res.status(400).json({ message: 'Enter a name and a valid email address.' });
+    if (!name || !email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ message: 'Enter a name and a valid email address.' });
     if (typeof password !== 'string' || password.length < 12) return res.status(400).json({ message: 'Use a temporary password with at least 12 characters.' });
     if (!['admin', 'editor'].includes(role || 'editor')) return res.status(400).json({ message: 'Choose a valid role.' });
     const user = await createUser({ name, email, password, role: role || 'editor' });
