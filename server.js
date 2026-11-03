@@ -35,7 +35,6 @@ const {
   getCategories, createCategory, updateCategory, deleteCategory,
   getProducts, createProduct, updateProduct, deleteProduct,
   createOrder, getOrders, updateOrderStatus,
-  getUsers,
   createUser,
   updateUserPassword,
   deleteUser,
