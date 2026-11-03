@@ -27,6 +27,7 @@ const {
   saveHomepageSections,
   getMedia,
   addMedia,
+  updateMedia,
   getAboutPage,
   saveAboutPage,
   getUserByEmail,
@@ -294,6 +295,26 @@ app.post('/api/admin/media/upload', authMiddleware, upload.array('files', 12), a
   } catch (error) {
     return next(error);
   }
+});
+
+
+app.put('/api/admin/media/:id', authMiddleware, async (req, res, next) => {
+  try {
+    const item = await updateMedia(req.params.id, req.body || {});
+    if (!item) return res.status(404).json({ message: 'Media item not found.' });
+    return res.json({ success: true, media: item });
+  } catch (error) { return next(error); }
+});
+app.post('/api/admin/media/:id/replace', authMiddleware, upload.single('file'), async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ message: 'Choose an image to replace this media item.' });
+    const item = (await getMedia()).find((m) => Number(m.id) === Number(req.params.id));
+    if (!item) return res.status(404).json({ message: 'Media item not found.' });
+    if (!item.pathname || !item.mime_type?.startsWith('image/')) return res.status(400).json({ message: 'Only uploaded image files can be cropped or replaced.' });
+    const blob = await put(item.pathname, req.file.buffer, { access: 'private', allowOverwrite: true, contentType: req.file.mimetype, token: process.env.BLOB_READ_WRITE_TOKEN });
+    const updated = await updateMedia(item.id, { url: blob.url, size: req.file.size, mimetype: req.file.mimetype });
+    return res.json({ success: true, media: updated });
+  } catch (error) { return next(error); }
 });
 
 app.get('/api/admin/about', authMiddleware, async (_req, res) => {
