@@ -107,7 +107,7 @@ const updateSettings = async (payload) => {
   return state.settings;
 };
 
-const getNavigation = async () => readState().navigation || [];
+const getNavigation = async () => (await readState()).navigation || [];
 
 const createNavigation = async ({ label, href, position = 0, is_visible = 1 }) => {
   const state = await readState();
@@ -118,7 +118,7 @@ const createNavigation = async ({ label, href, position = 0, is_visible = 1 }) =
   return item;
 };
 
-const getServices = async () => readState().services || [];
+const getServices = async () => (await readState()).services || [];
 
 const createService = async (payload) => {
   const state = await readState();
@@ -154,7 +154,7 @@ const deleteService = async (id) => {
   return state.services.length !== before;
 };
 
-const getProjects = async () => readState().projects || [];
+const getProjects = async () => (await readState()).projects || [];
 
 const slugify = (value) => `${String(value || '')}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `project-${Date.now()}`;
 
@@ -207,7 +207,7 @@ const deleteProject = async (id) => {
   return state.projects.length !== before;
 };
 
-const getHomepageSections = async () => readState().homepage_sections || [];
+const getHomepageSections = async () => (await readState()).homepage_sections || [];
 
 const saveHomepageSections = async (sections) => {
   const state = await readState();
@@ -227,7 +227,7 @@ const saveHomepageSections = async (sections) => {
   return state.homepage_sections;
 };
 
-const getMedia = async () => readState().media || [];
+const getMedia = async () => (await readState()).media || [];
 
 const addMedia = async (files) => {
   const state = await readState();
