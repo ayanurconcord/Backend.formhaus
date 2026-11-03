@@ -76,6 +76,7 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadDir));
+app.get('/admin', (_req, res) => res.redirect(302, '/admin/'));
 app.use('/admin', express.static(path.join(publicDir, 'admin')));
 
 const authMiddleware = (req, res, next) => {
