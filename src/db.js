@@ -332,6 +332,71 @@ const deleteUser = async (id) => {
   return true;
 };
 
+
+const getCategories = async ({ includeHidden = false } = {}) => {
+  const state = await readState();
+  return (state.categories || []).filter((item) => includeHidden || Number(item.is_visible) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order));
+};
+const createCategory = async (payload) => {
+  const state = await readState();
+  state.categories ||= [];
+  const name = String(payload.name || '').trim();
+  if (state.categories.some((item) => item.name.toLowerCase() === name.toLowerCase())) {
+    const error = new Error('A category with this name already exists.'); error.status = 409; throw error;
+  }
+  const id = state.categories.reduce((max,item)=>Math.max(max,Number(item.id)||0),0)+1;
+  const slug = slugify(name);
+  const item = { id, name, slug, description: String(payload.description||''), image: String(payload.image||''), is_visible: Number(payload.is_visible ?? 1), sort_order: Number(payload.sort_order ?? id) };
+  state.categories.push(item); await writeState(state); return item;
+};
+const updateCategory = async (id,payload) => {
+  const state=await readState(); const item=(state.categories||[]).find(x=>Number(x.id)===Number(id)); if(!item)return null;
+  const name=payload.name===undefined?item.name:String(payload.name).trim();
+  if((state.categories||[]).some(x=>Number(x.id)!==Number(id)&&x.name.toLowerCase()===name.toLowerCase())){const error=new Error('A category with this name already exists.');error.status=409;throw error;}
+  Object.assign(item,{name,slug:slugify(name),description:payload.description??item.description,image:payload.image??item.image,is_visible:Number(payload.is_visible??item.is_visible),sort_order:Number(payload.sort_order??item.sort_order)});
+  await writeState(state);return item;
+};
+const deleteCategory = async (id) => {
+  const state=await readState();
+  if((state.products||[]).some(p=>Number(p.category_id)===Number(id))){const error=new Error('Move or delete the products in this category before deleting it.');error.status=409;throw error;}
+  const before=(state.categories||[]).length;state.categories=(state.categories||[]).filter(x=>Number(x.id)!==Number(id));await writeState(state);return state.categories.length!==before;
+};
+const getProducts = async ({ includeHidden = false } = {}) => {
+  const state=await readState();
+  return (state.products||[]).filter(p=>includeHidden||Number(p.is_published)===1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order));
+};
+const createProduct = async (payload) => {
+  const state=await readState();state.products||=[];
+  if(!(state.categories||[]).some(c=>Number(c.id)===Number(payload.category_id))) {const error=new Error('Choose a valid category.');error.status=400;throw error;}
+  const id=state.products.reduce((max,p)=>Math.max(max,Number(p.id)||0),0)+1;
+  const slug=slugify(payload.name);
+  const item={id,name:String(payload.name).trim(),slug,description:String(payload.description||''),category_id:Number(payload.category_id),price:Number(payload.price),compare_at_price:payload.compare_at_price===''||payload.compare_at_price==null?null:Number(payload.compare_at_price),sku:String(payload.sku||''),image:String(payload.image||''),gallery:Array.isArray(payload.gallery)?payload.gallery:[],tags:Array.isArray(payload.tags)?payload.tags:[],stock:Number(payload.stock??0),is_published:Number(payload.is_published??1),sort_order:Number(payload.sort_order??id),created_at:new Date().toISOString()};
+  if(!item.name||!Number.isFinite(item.price)||item.price<0){const error=new Error('Enter a product name and a valid price.');error.status=400;throw error;}
+  if(state.products.some(p=>p.slug===slug)){item.slug=slug+'-'+id;}
+  state.products.push(item);await writeState(state);return item;
+};
+const updateProduct = async (id,payload) => {
+  const state=await readState();const item=(state.products||[]).find(p=>Number(p.id)===Number(id));if(!item)return null;
+  if(payload.category_id!==undefined&&!state.categories.some(c=>Number(c.id)===Number(payload.category_id))){const error=new Error('Choose a valid category.');error.status=400;throw error;}
+  const nextPrice=payload.price===undefined?item.price:Number(payload.price);if(!Number.isFinite(nextPrice)||nextPrice<0){const error=new Error('Enter a valid product price.');error.status=400;throw error;}
+  Object.assign(item,{...payload,price:nextPrice,category_id:Number(payload.category_id??item.category_id),stock:Number(payload.stock??item.stock),is_published:Number(payload.is_published??item.is_published),sort_order:Number(payload.sort_order??item.sort_order),tags:Array.isArray(payload.tags)?payload.tags:item.tags,gallery:Array.isArray(payload.gallery)?payload.gallery:item.gallery});
+  if(payload.name)item.slug=slugify(payload.name)+'-'+item.id;
+  await writeState(state);return item;
+};
+const deleteProduct = async (id) => {const state=await readState();const before=(state.products||[]).length;state.products=(state.products||[]).filter(p=>Number(p.id)!==Number(id));await writeState(state);return state.products.length!==before;};
+const createOrder = async (payload) => {
+  const state=await readState();state.orders||=[];
+  const lines=Array.isArray(payload.items)?payload.items:[];
+  if(!lines.length||lines.length>50){const error=new Error('Your cart is empty or contains too many items.');error.status=400;throw error;}
+  const items=lines.map(line=>{const product=(state.products||[]).find(p=>Number(p.id)===Number(line.product_id)&&Number(p.is_published)===1);if(!product) {const error=new Error('One of the products is no longer available. Refresh your cart and try again.');error.status=409;throw error;}const quantity=Math.max(1,Math.min(99,Math.floor(Number(line.quantity)||1)));if(Number(product.stock)>=0&&Number(product.stock)<quantity){const error=new Error(product.name+' does not have enough stock.');error.status=409;throw error;}return {product_id:product.id,name:product.name,sku:product.sku,image:product.image,unit_price:Number(product.price),quantity,line_total:Number((Number(product.price)*quantity).toFixed(2))};});
+  const id=state.orders.reduce((max,o)=>Math.max(max,Number(o.id)||0),0)+1;
+  const order={id,order_number:'FH-'+String(id).padStart(5,'0'),customer_name:String(payload.customer_name||'').trim(),email:String(payload.email||'').trim().toLowerCase(),phone:String(payload.phone||'').trim(),address:String(payload.address||'').trim(),notes:String(payload.notes||'').trim(),items,total:Number(items.reduce((sum,x)=>sum+x.line_total,0).toFixed(2)),currency:String(payload.currency||'USD'),status:'pending',created_at:new Date().toISOString()};
+  if(!order.customer_name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)){const error=new Error('Enter your name and a valid email address.');error.status=400;throw error;}
+  state.orders.push(order);await writeState(state);return order;
+};
+const getOrders = async () => (await readState()).orders||[];
+const updateOrderStatus = async (id,status) => {const allowed=['pending','confirmed','processing','shipped','completed','cancelled'];if(!allowed.includes(status)){const error=new Error('Invalid order status.');error.status=400;throw error;}const state=await readState();const order=(state.orders||[]).find(o=>Number(o.id)===Number(id));if(!order)return null;order.status=status;await writeState(state);return order;};
+
 const getWebsitePayload = async () => {
   const state = await readState();
   const settings = state.settings || { ...defaultSettings };
@@ -368,6 +433,8 @@ const getWebsitePayload = async () => {
     homepage: { sections: homepage, featuredProjects, intro: homepage[0] || null },
     services,
     projects,
+    categories: (state.categories || []).filter((item) => Number(item.is_visible) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)),
+    products: (state.products || []).filter((item) => Number(item.is_published) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)).map((product) => ({ ...product, category: (state.categories || []).find((category) => Number(category.id) === Number(product.category_id)) || null })),
     about: state.pages?.about || { slug: 'about', title: 'About the studio', content: '' },
     contact: {
       email: settings.contact_email || defaultSettings.contact_email,
@@ -405,6 +472,9 @@ module.exports = {
   createUser,
   updateUserPassword,
   deleteUser,
+  getCategories, createCategory, updateCategory, deleteCategory,
+  getProducts, createProduct, updateProduct, deleteProduct,
+  createOrder, getOrders, updateOrderStatus,
   getWebsitePayload,
   readState,
   writeState
