@@ -31,6 +31,10 @@ const {
   saveAboutPage,
   getUserByEmail,
   getUserById,
+  getUsers,
+  createUser,
+  updateUserPassword,
+  deleteUser,
   getWebsitePayload
 } = require('./src/db');
 
@@ -79,7 +83,7 @@ app.get('/uploads/*', async (req, res, next) => {
 app.get('/admin', (_req, res) => res.redirect(302, '/admin/'));
 app.use('/admin', express.static(path.join(publicDir, 'admin')));
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   const authHeader = req.headers.authorization || '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : null;
   if (!token) {
@@ -88,14 +92,20 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
+    const currentUser = await getUserById(decoded.id);
+    if (!currentUser || Number(decoded.token_version || 0) !== Number(currentUser.token_version || 0)) {
+      return res.status(401).json({ message: 'Your session has expired. Please sign in again.' });
+    }
+    req.user = { id: currentUser.id, email: currentUser.email, role: currentUser.role };
     next();
   } catch (error) {
     return res.status(401).json({ message: 'Invalid token' });
   }
 };
 
-const generateToken = (user) => jwt.sign({ id: user.id, email: user.email, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+const generateToken = (user) => jwt.sign({ id: user.id, email: user.email, role: user.role, token_version: Number(user.token_version || 0) }, JWT_SECRET, { expiresIn: '7d' });
+
+const requireAdmin = (req, res, next) => req.user.role === 'admin' ? next() : res.status(403).json({ message: 'Administrator access required.' });
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, app: 'formhaus-backend', timestamp: new Date().toISOString() });
@@ -272,6 +282,45 @@ app.get('/api/admin/about', authMiddleware, async (_req, res) => {
 app.put('/api/admin/about', authMiddleware, async (req, res) => {
   const page = await saveAboutPage(req.body || {});
   res.json({ success: true, page });
+});
+
+
+app.get('/api/admin/users', authMiddleware, requireAdmin, async (_req, res, next) => {
+  try { return res.json({ users: await getUsers() }); } catch (error) { return next(error); }
+});
+
+app.post('/api/admin/users', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const { name, email, password, role } = req.body || {};
+    if (!name || !email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) return res.status(400).json({ message: 'Enter a name and a valid email address.' });
+    if (typeof password !== 'string' || password.length < 12) return res.status(400).json({ message: 'Use a temporary password with at least 12 characters.' });
+    if (!['admin', 'editor'].includes(role || 'editor')) return res.status(400).json({ message: 'Choose a valid role.' });
+    const user = await createUser({ name, email, password, role: role || 'editor' });
+    return res.status(201).json({ success: true, user });
+  } catch (error) { return next(error); }
+});
+
+app.put('/api/admin/users/:id/password', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const { password } = req.body || {};
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Invalid user.' });
+    if (typeof password !== 'string' || password.length < 12) return res.status(400).json({ message: 'Use a new password with at least 12 characters.' });
+    const changed = await updateUserPassword(id, password);
+    if (!changed) return res.status(404).json({ message: 'User not found.' });
+    return res.json({ success: true, message: 'Password rotated. That user must sign in again.' });
+  } catch (error) { return next(error); }
+});
+
+app.delete('/api/admin/users/:id', authMiddleware, requireAdmin, async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) return res.status(400).json({ message: 'Invalid user.' });
+    if (id === Number(req.user.id)) return res.status(400).json({ message: 'You cannot remove your own account.' });
+    const deleted = await deleteUser(id);
+    if (!deleted) return res.status(404).json({ message: 'User not found.' });
+    return res.json({ success: true });
+  } catch (error) { return next(error); }
 });
 
 app.get('/api/admin/me', authMiddleware, async (req, res) => {
