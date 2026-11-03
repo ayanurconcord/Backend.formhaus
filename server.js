@@ -101,13 +101,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, app: 'formhaus-backend', timestamp: new Date().toISOString() });
 });
 
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res, next) => {
+  try {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ message: 'Email and password are required.' });
   }
 
-  const user = getUserByEmail(email);
+  const user = await getUserByEmail(email);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     return res.status(401).json({ message: 'Invalid credentials.' });
   }
@@ -116,118 +117,121 @@ app.post('/api/auth/login', (req, res) => {
     token: generateToken(user),
     user: { id: user.id, name: user.name, email: user.email, role: user.role }
   });
+  } catch (error) { return next(error); }
 });
 
-app.get('/api/site', (_req, res) => {
-  return res.json(getWebsitePayload());
+app.get('/api/site', async (_req, res, next) => {
+  try { return res.json(await getWebsitePayload()); } catch (error) { return next(error); }
 });
 
-app.get('/api/admin/dashboard', authMiddleware, (_req, res) => {
-  const state = require('./src/db').readState();
+app.get('/api/admin/dashboard', authMiddleware, async (_req, res, next) => {
+  try {
+  const state = await require('./src/db').readState();
   const stats = {
     projects: (state.projects || []).length,
     services: (state.services || []).length,
     media: (state.media || []).length,
     users: (state.users || []).length
   };
-  res.json({ stats, site: getWebsitePayload() });
+  res.json({ stats, site: await getWebsitePayload() });
+  } catch (error) { return next(error); }
 });
 
-app.get('/api/admin/settings', authMiddleware, (_req, res) => {
-  res.json({ settings: getSettingsMap() });
+app.get('/api/admin/settings', authMiddleware, async (_req, res) => {
+  res.json({ settings: await getSettingsMap() });
 });
 
-app.put('/api/admin/settings', authMiddleware, (req, res) => {
+app.put('/api/admin/settings', authMiddleware, async (req, res) => {
   const payload = req.body || {};
   if (!Object.keys(payload).length) {
     return res.status(400).json({ message: 'No settings data provided.' });
   }
-  return res.json({ success: true, settings: updateSettings(payload) });
+  return res.json({ success: true, settings: await updateSettings(payload) });
 });
 
-app.get('/api/admin/navigation', authMiddleware, (_req, res) => {
-  res.json({ navigation: getNavigation() });
+app.get('/api/admin/navigation', authMiddleware, async (_req, res) => {
+  res.json({ navigation: await getNavigation() });
 });
 
-app.post('/api/admin/navigation', authMiddleware, (req, res) => {
+app.post('/api/admin/navigation', authMiddleware, async (req, res) => {
   const { label, href, position = 0, is_visible = 1 } = req.body || {};
   if (!label || !href) {
     return res.status(400).json({ message: 'Label and href are required.' });
   }
-  const item = createNavigation({ label, href, position, is_visible });
+  const item = await createNavigation({ label, href, position, is_visible });
   res.status(201).json({ success: true, item });
 });
 
-app.get('/api/admin/services', authMiddleware, (_req, res) => {
-  res.json({ services: getServices() });
+app.get('/api/admin/services', authMiddleware, async (_req, res) => {
+  res.json({ services: await getServices() });
 });
 
-app.post('/api/admin/services', authMiddleware, (req, res) => {
+app.post('/api/admin/services', authMiddleware, async (req, res) => {
   const { name, description, image, price, is_visible = 1, sort_order = 0 } = req.body || {};
   if (!name || !description) {
     return res.status(400).json({ message: 'Service name and description are required.' });
   }
-  const item = createService({ name, description, image, price, is_visible, sort_order });
+  const item = await createService({ name, description, image, price, is_visible, sort_order });
   res.status(201).json({ success: true, item });
 });
 
-app.put('/api/admin/services/:id', authMiddleware, (req, res) => {
-  const item = updateService(req.params.id, req.body || {});
+app.put('/api/admin/services/:id', authMiddleware, async (req, res) => {
+  const item = await updateService(req.params.id, req.body || {});
   if (!item) {
     return res.status(404).json({ message: 'Service not found.' });
   }
   res.json({ success: true, item });
 });
 
-app.delete('/api/admin/services/:id', authMiddleware, (req, res) => {
-  const deleted = deleteService(req.params.id);
+app.delete('/api/admin/services/:id', authMiddleware, async (req, res) => {
+  const deleted = await deleteService(req.params.id);
   if (!deleted) {
     return res.status(404).json({ message: 'Service not found.' });
   }
   res.json({ success: true });
 });
 
-app.get('/api/admin/projects', authMiddleware, (_req, res) => {
-  res.json({ projects: getProjects() });
+app.get('/api/admin/projects', authMiddleware, async (_req, res) => {
+  res.json({ projects: await getProjects() });
 });
 
-app.post('/api/admin/projects', authMiddleware, (req, res) => {
+app.post('/api/admin/projects', authMiddleware, async (req, res) => {
   const { title, category, description, cover_image, gallery, model_url, featured = 0, is_published = 1, sort_order = 0 } = req.body || {};
   if (!title || !description) {
     return res.status(400).json({ message: 'Project title and description are required.' });
   }
-  const item = createProject({ title, category, description, cover_image, gallery, model_url, featured, is_published, sort_order });
+  const item = await createProject({ title, category, description, cover_image, gallery, model_url, featured, is_published, sort_order });
   res.status(201).json({ success: true, item });
 });
 
-app.put('/api/admin/projects/:id', authMiddleware, (req, res) => {
-  const item = updateProject(req.params.id, req.body || {});
+app.put('/api/admin/projects/:id', authMiddleware, async (req, res) => {
+  const item = await updateProject(req.params.id, req.body || {});
   if (!item) {
     return res.status(404).json({ message: 'Project not found.' });
   }
   res.json({ success: true, item });
 });
 
-app.delete('/api/admin/projects/:id', authMiddleware, (req, res) => {
-  const deleted = deleteProject(req.params.id);
+app.delete('/api/admin/projects/:id', authMiddleware, async (req, res) => {
+  const deleted = await deleteProject(req.params.id);
   if (!deleted) {
     return res.status(404).json({ message: 'Project not found.' });
   }
   res.json({ success: true });
 });
 
-app.get('/api/admin/homepage', authMiddleware, (_req, res) => {
-  res.json({ sections: getHomepageSections() });
+app.get('/api/admin/homepage', authMiddleware, async (_req, res) => {
+  res.json({ sections: await getHomepageSections() });
 });
 
-app.put('/api/admin/homepage', authMiddleware, (req, res) => {
+app.put('/api/admin/homepage', authMiddleware, async (req, res) => {
   const sections = Array.isArray(req.body.sections) ? req.body.sections : [];
-  const saved = saveHomepageSections(sections);
+  const saved = await saveHomepageSections(sections);
   res.json({ success: true, sections: saved });
 });
 
-app.get('/api/admin/media', authMiddleware, (_req, res) => {
-  res.json({ media: getMedia() });
+app.get('/api/admin/media', authMiddleware, async (_req, res) => {
+  res.json({ media: await getMedia() });
 });
 
 app.post('/api/admin/media/upload', authMiddleware, upload.array('files', 12), async (req, res, next) => {
@@ -261,17 +265,17 @@ app.post('/api/admin/media/upload', authMiddleware, upload.array('files', 12), a
   }
 });
 
-app.get('/api/admin/about', authMiddleware, (_req, res) => {
-  res.json({ page: getAboutPage() });
+app.get('/api/admin/about', authMiddleware, async (_req, res) => {
+  res.json({ page: await getAboutPage() });
 });
 
-app.put('/api/admin/about', authMiddleware, (req, res) => {
-  const page = saveAboutPage(req.body || {});
+app.put('/api/admin/about', authMiddleware, async (req, res) => {
+  const page = await saveAboutPage(req.body || {});
   res.json({ success: true, page });
 });
 
-app.get('/api/admin/me', authMiddleware, (req, res) => {
-  const user = getUserById(req.user.id);
+app.get('/api/admin/me', authMiddleware, async (req, res) => {
+  const user = await getUserById(req.user.id);
   if (!user) {
     return res.status(404).json({ message: 'User not found.' });
   }
