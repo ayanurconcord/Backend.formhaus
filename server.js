@@ -80,6 +80,7 @@ const configuredClientOrigins = (process.env.CLIENT_URL || '').split(',').map((o
 const allowedOrigins = new Set([
   ...configuredClientOrigins,
   'https://frontendformhaus-1q7l7i9rz-formhaus1.vercel.app',
+  'https://backend-formhaus.vercel.app',
   ...(!isProduction ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
 ]);
 
