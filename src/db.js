@@ -1,9 +1,8 @@
-const fs = require('fs');
-const path = require('path');
+const { put, get } = require('@vercel/blob');
+const { Readable } = require('stream');
 const bcrypt = require('bcryptjs');
 
-const dataDir = path.join(__dirname, '..', 'data');
-const dataFile = path.join(dataDir, 'store.json');
+const STATE_PATH = 'formhaus-data/store.json';
 
 const defaultSettings = {
   site_name: 'FORMHAUS.STUDIO',
@@ -73,49 +72,56 @@ const defaultState = {
   }
 };
 
-const ensureDataFile = () => {
-  if (!fs.existsSync(dataDir)) {
-    fs.mkdirSync(dataDir, { recursive: true });
+const readState = async () => {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error('BLOB_READ_WRITE_TOKEN is required for persistent CMS storage.');
   }
-  if (!fs.existsSync(dataFile)) {
-    fs.writeFileSync(dataFile, JSON.stringify(defaultState, null, 2));
+  const result = await get(STATE_PATH, { access: 'private', useCache: false });
+  if (result && result.statusCode === 200 && result.stream) {
+    const chunks = [];
+    for await (const chunk of Readable.fromWeb(result.stream)) chunks.push(chunk);
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
   }
+  await writeState(defaultState);
+  return JSON.parse(JSON.stringify(defaultState));
 };
 
-const readState = () => {
-  ensureDataFile();
-  return JSON.parse(fs.readFileSync(dataFile, 'utf8'));
+const writeState = async (state) => {
+  if (!process.env.BLOB_READ_WRITE_TOKEN) {
+    throw new Error('BLOB_READ_WRITE_TOKEN is required for persistent CMS storage.');
+  }
+  await put(STATE_PATH, JSON.stringify(state, null, 2), {
+    access: 'private',
+    addRandomSuffix: false,
+    allowOverwrite: true,
+    contentType: 'application/json'
+  });
 };
 
-const writeState = (state) => {
-  ensureDataFile();
-  fs.writeFileSync(dataFile, JSON.stringify(state, null, 2));
-};
+const getSettingsMap = async () => (await readState()).settings || { ...defaultSettings };
 
-const getSettingsMap = () => readState().settings || { ...defaultSettings };
-
-const updateSettings = (payload) => {
-  const state = readState();
+const updateSettings = async (payload) => {
+  const state = await readState();
   state.settings = { ...state.settings, ...payload };
-  writeState(state);
+  await writeState(state);
   return state.settings;
 };
 
-const getNavigation = () => readState().navigation || [];
+const getNavigation = async () => readState().navigation || [];
 
-const createNavigation = ({ label, href, position = 0, is_visible = 1 }) => {
-  const state = readState();
+const createNavigation = async ({ label, href, position = 0, is_visible = 1 }) => {
+  const state = await readState();
   const nextId = (state.navigation || []).reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1;
   const item = { id: nextId, label, href, position: Number(position), is_visible: Number(is_visible) };
   state.navigation.push(item);
-  writeState(state);
+  await writeState(state);
   return item;
 };
 
-const getServices = () => readState().services || [];
+const getServices = async () => readState().services || [];
 
-const createService = (payload) => {
-  const state = readState();
+const createService = async (payload) => {
+  const state = await readState();
   const nextId = (state.services || []).reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1;
   const item = {
     id: nextId,
@@ -127,33 +133,33 @@ const createService = (payload) => {
     sort_order: Number(payload.sort_order ?? 0)
   };
   state.services.push(item);
-  writeState(state);
+  await writeState(state);
   return item;
 };
 
-const updateService = (id, payload) => {
-  const state = readState();
+const updateService = async (id, payload) => {
+  const state = await readState();
   const service = (state.services || []).find((item) => Number(item.id) === Number(id));
   if (!service) return null;
   Object.assign(service, { ...service, ...payload, is_visible: Number(payload.is_visible ?? service.is_visible), sort_order: Number(payload.sort_order ?? service.sort_order) });
-  writeState(state);
+  await writeState(state);
   return service;
 };
 
-const deleteService = (id) => {
-  const state = readState();
+const deleteService = async (id) => {
+  const state = await readState();
   const before = state.services.length;
   state.services = (state.services || []).filter((item) => Number(item.id) !== Number(id));
-  writeState(state);
+  await writeState(state);
   return state.services.length !== before;
 };
 
-const getProjects = () => readState().projects || [];
+const getProjects = async () => readState().projects || [];
 
 const slugify = (value) => `${String(value || '')}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || `project-${Date.now()}`;
 
-const createProject = (payload) => {
-  const state = readState();
+const createProject = async (payload) => {
+  const state = await readState();
   const nextId = (state.projects || []).reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1;
   const item = {
     id: nextId,
@@ -169,12 +175,12 @@ const createProject = (payload) => {
     sort_order: Number(payload.sort_order ?? 0)
   };
   state.projects.push(item);
-  writeState(state);
+  await writeState(state);
   return item;
 };
 
-const updateProject = (id, payload) => {
-  const state = readState();
+const updateProject = async (id, payload) => {
+  const state = await readState();
   const project = (state.projects || []).find((item) => Number(item.id) === Number(id));
   if (!project) return null;
   Object.assign(project, {
@@ -189,22 +195,22 @@ const updateProject = (id, payload) => {
     is_published: Number(payload.is_published ?? project.is_published),
     sort_order: Number(payload.sort_order ?? project.sort_order)
   });
-  writeState(state);
+  await writeState(state);
   return project;
 };
 
-const deleteProject = (id) => {
-  const state = readState();
+const deleteProject = async (id) => {
+  const state = await readState();
   const before = state.projects.length;
   state.projects = (state.projects || []).filter((item) => Number(item.id) !== Number(id));
-  writeState(state);
+  await writeState(state);
   return state.projects.length !== before;
 };
 
-const getHomepageSections = () => readState().homepage_sections || [];
+const getHomepageSections = async () => readState().homepage_sections || [];
 
-const saveHomepageSections = (sections) => {
-  const state = readState();
+const saveHomepageSections = async (sections) => {
+  const state = await readState();
   state.homepage_sections = (sections || []).map((section, index) => ({
     id: Number(section.id || index + 1),
     section_key: section.section_key || `section-${index + 1}`,
@@ -217,14 +223,14 @@ const saveHomepageSections = (sections) => {
     enabled: Number(section.enabled ?? 1),
     sort_order: Number(section.sort_order ?? index)
   }));
-  writeState(state);
+  await writeState(state);
   return state.homepage_sections;
 };
 
-const getMedia = () => readState().media || [];
+const getMedia = async () => readState().media || [];
 
-const addMedia = (files) => {
-  const state = readState();
+const addMedia = async (files) => {
+  const state = await readState();
   const saved = [];
   for (const file of files) {
     const nextId = (state.media || []).reduce((max, item) => Math.max(max, Number(item.id || 0)), 0) + 1;
@@ -242,14 +248,14 @@ const addMedia = (files) => {
     state.media.push(entry);
     saved.push(entry);
   }
-  writeState(state);
+  await writeState(state);
   return saved;
 };
 
-const getAboutPage = () => readState().pages?.about || { slug: 'about', title: 'About the studio', content: '', seo_title: 'About FORMHAUS', seo_description: 'Learn more about the studio.' };
+const getAboutPage = async () => (await readState()).pages?.about || { slug: 'about', title: 'About the studio', content: '', seo_title: 'About FORMHAUS', seo_description: 'Learn more about the studio.' };
 
-const saveAboutPage = (payload) => {
-  const state = readState();
+const saveAboutPage = async (payload) => {
+  const state = await readState();
   state.pages = state.pages || {};
   state.pages.about = {
     slug: 'about',
@@ -258,22 +264,22 @@ const saveAboutPage = (payload) => {
     seo_title: payload.seo_title || 'About FORMHAUS',
     seo_description: payload.seo_description || 'Learn more about the studio.'
   };
-  writeState(state);
+  await writeState(state);
   return state.pages.about;
 };
 
-const getUserByEmail = (email) => {
-  const state = readState();
+const getUserByEmail = async (email) => {
+  const state = await readState();
   return (state.users || []).find((user) => String(user.email).toLowerCase() === String(email).toLowerCase()) || null;
 };
 
-const getUserById = (id) => {
-  const state = readState();
+const getUserById = async (id) => {
+  const state = await readState();
   return (state.users || []).find((user) => Number(user.id) === Number(id)) || null;
 };
 
-const getWebsitePayload = () => {
-  const state = readState();
+const getWebsitePayload = async () => {
+  const state = await readState();
   const settings = state.settings || { ...defaultSettings };
   const navigation = (state.navigation || []).filter((item) => Number(item.is_visible) === 1).sort((a,b)=>Number(a.position)-Number(b.position));
   const services = (state.services || []).filter((item) => Number(item.is_visible) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order));
