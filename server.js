@@ -1,10 +1,11 @@
-const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const multer = require('multer');
+const { put, get } = require('@vercel/blob');
+const { Readable } = require('stream');
 const morgan = require('morgan');
 const dotenv = require('dotenv');
 const {
@@ -37,29 +38,14 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 4000;
 const JWT_SECRET = process.env.JWT_SECRET || 'formhaus-dev-secret';
-const uploadDir = path.join(__dirname, 'uploads');
 const publicDir = path.join(__dirname, 'public');
 
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
 if (!fs.existsSync(publicDir)) {
   fs.mkdirSync(publicDir, { recursive: true });
 }
 
-const storage = multer.diskStorage({
-  destination: function (_req, _file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (_req, file, cb) {
-    const timestamp = Date.now();
-    const safeName = file.originalname.replace(/\s+/g, '-');
-    cb(null, `${timestamp}-${safeName}`);
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     const allowed = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml', 'video/mp4', 'video/webm', 'model/gltf-binary', 'application/octet-stream'];
@@ -75,7 +61,20 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
-app.use('/uploads', express.static(uploadDir));
+app.get('/uploads/*', async (req, res, next) => {
+  try {
+    const pathname = req.params[0];
+    if (!pathname || pathname.includes('..')) return res.status(404).end();
+    const blob = await get(pathname, { access: 'private' });
+    if (!blob || blob.statusCode !== 200 || !blob.stream) return res.status(404).end();
+    res.setHeader('Content-Type', blob.blob.contentType || 'application/octet-stream');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    Readable.fromWeb(blob.stream).pipe(res);
+  } catch (error) {
+    next(error);
+  }
+});
 app.get('/admin', (_req, res) => res.redirect(302, '/admin/'));
 app.use('/admin', express.static(path.join(publicDir, 'admin')));
 
@@ -230,12 +229,35 @@ app.get('/api/admin/media', authMiddleware, (_req, res) => {
   res.json({ media: getMedia() });
 });
 
-app.post('/api/admin/media/upload', authMiddleware, upload.array('files', 12), (req, res) => {
-  if (!req.files || req.files.length === 0) {
-    return res.status(400).json({ message: 'No files uploaded.' });
+app.post('/api/admin/media/upload', authMiddleware, upload.array('files', 12), async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ message: 'No files uploaded.' });
+    }
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return res.status(503).json({ message: 'Blob storage is not configured on this deployment.' });
+    }
+    const uploaded = await Promise.all(req.files.map(async (file) => {
+      const safeName = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '-').slice(-120) || 'upload';
+      const blob = await put(`formhaus/${Date.now()}-${Math.random().toString(36).slice(2)}-${safeName}`, file.buffer, {
+        access: 'private',
+        addRandomSuffix: true,
+        contentType: file.mimetype
+      });
+      return {
+        filename: file.originalname,
+        path: `/uploads/${blob.pathname}`,
+        url: blob.url,
+        pathname: blob.pathname,
+        mimetype: file.mimetype,
+        size: file.size
+      };
+    }));
+    const files = addMedia(uploaded);
+    return res.status(201).json({ success: true, files });
+  } catch (error) {
+    return next(error);
   }
-  const files = addMedia(req.files);
-  res.status(201).json({ success: true, files });
 });
 
 app.get('/api/admin/about', authMiddleware, (_req, res) => {
