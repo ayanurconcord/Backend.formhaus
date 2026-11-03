@@ -77,7 +77,7 @@ app.get('/uploads/*', async (req, res, next) => {
     const blob = await get(pathname, { access: 'private' });
     if (!blob || blob.statusCode !== 200 || !blob.stream) return res.status(404).end();
     res.setHeader('Content-Type', blob.blob.contentType || 'application/octet-stream');
-    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('Cache-Control', 'private, no-store, max-age=0');
     res.setHeader('X-Content-Type-Options', 'nosniff');
     Readable.fromWeb(blob.stream).pipe(res);
   } catch (error) {
@@ -311,8 +311,9 @@ app.post('/api/admin/media/:id/replace', authMiddleware, upload.single('file'), 
     const item = (await getMedia()).find((m) => Number(m.id) === Number(req.params.id));
     if (!item) return res.status(404).json({ message: 'Media item not found.' });
     if (!item.pathname || !item.mime_type?.startsWith('image/')) return res.status(400).json({ message: 'Only uploaded image files can be cropped or replaced.' });
-    const blob = await put(item.pathname, req.file.buffer, { access: 'private', allowOverwrite: true, contentType: req.file.mimetype, token: process.env.BLOB_READ_WRITE_TOKEN });
-    const updated = await updateMedia(item.id, { url: blob.url, size: req.file.size, mimetype: req.file.mimetype });
+    const safeName = (req.file.originalname || item.filename || 'image').replace(/[^a-zA-Z0-9._-]/g, '-').slice(-100);
+    const blob = await put('formhaus/' + Date.now() + '-' + Math.random().toString(36).slice(2) + '-' + safeName, req.file.buffer, { access: 'private', addRandomSuffix: true, contentType: req.file.mimetype, token: process.env.BLOB_READ_WRITE_TOKEN });
+    const updated = await updateMedia(item.id, { url: blob.url, pathname: blob.pathname, path: '/uploads/' + blob.pathname, size: req.file.size, mimetype: req.file.mimetype });
     return res.json({ success: true, media: updated });
   } catch (error) { return next(error); }
 });
