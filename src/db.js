@@ -232,6 +232,8 @@ const addMedia = (files) => {
       id: nextId,
       filename: file.filename,
       path: file.path,
+      url: file.url || '',
+      pathname: file.pathname || '',
       mime_type: file.mimetype,
       kind: file.mimetype.startsWith('image/') ? 'image' : file.mimetype.startsWith('video/') ? 'video' : 'asset',
       size: file.size,
