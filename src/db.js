@@ -22,8 +22,8 @@ const defaultSettings = {
   seo_description: 'Premium 3D printing, rapid prototyping and custom fabrication for products, design teams and innovators.',
   hero_title: 'Precision in every layer.',
   hero_description: 'We design, prototype, and fabricate extraordinary objects with industrial-grade 3D printing and custom production expertise.',
-  hero_primary_cta: 'Book a consult',
-  hero_primary_link: '#contact',
+  hero_primary_cta: 'Shop the collection',
+  hero_primary_link: '/shop',
   hero_secondary_cta: 'View projects',
   hero_secondary_link: '/portfolio'
 };
@@ -101,7 +101,7 @@ const writeState = async (state) => {
   });
 };
 
-const getSettingsMap = async () => (await readState()).settings || { ...defaultSettings };
+const getSettingsMap = async () => { const settings = { ...defaultSettings, ...((await readState()).settings || {}) }; if (settings.hero_primary_cta === 'Book a consult') settings.hero_primary_cta = 'Shop the collection'; if (settings.hero_primary_link === '#contact') settings.hero_primary_link = '/shop'; return settings; };
 
 const updateSettings = async (payload) => {
   const state = await readState();
@@ -428,8 +428,8 @@ const getWebsitePayload = async () => {
       seo_description: settings.seo_description || defaultSettings.seo_description,
       hero_title: settings.hero_title || defaultSettings.hero_title,
       hero_description: settings.hero_description || defaultSettings.hero_description,
-      hero_primary_cta: settings.hero_primary_cta || defaultSettings.hero_primary_cta,
-      hero_primary_link: settings.hero_primary_link || defaultSettings.hero_primary_link,
+      hero_primary_cta: settings.hero_primary_cta === 'Book a consult' ? 'Shop the collection' : (settings.hero_primary_cta || defaultSettings.hero_primary_cta),
+      hero_primary_link: settings.hero_primary_link === '#contact' ? '/shop' : (settings.hero_primary_link || defaultSettings.hero_primary_link),
       hero_secondary_cta: settings.hero_secondary_cta || defaultSettings.hero_secondary_cta,
       hero_secondary_link: settings.hero_secondary_link || defaultSettings.hero_secondary_link
     },
