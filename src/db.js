@@ -231,6 +231,19 @@ const saveHomepageSections = async (sections) => {
 };
 
 const getMedia = async () => (await readState()).media || [];
+const updateMedia = async (id, payload = {}) => {
+  const state = await readState();
+  const item = (state.media || []).find((m) => Number(m.id) === Number(id));
+  if (!item) return null;
+  if (payload.filename !== undefined) item.filename = String(payload.filename).trim() || item.filename;
+  if (payload.alt_text !== undefined) item.alt_text = String(payload.alt_text).trim();
+  if (payload.title !== undefined) item.title = String(payload.title).trim();
+  if (payload.size !== undefined) item.size = Number(payload.size);
+  if (payload.mimetype !== undefined) { item.mime_type = payload.mimetype; item.kind = payload.mimetype.startsWith('image/') ? 'image' : payload.mimetype.startsWith('video/') ? 'video' : 'asset'; }
+  item.updated_at = new Date().toISOString();
+  await writeState(state);
+  return item;
+};
 
 const addMedia = async (files) => {
   const state = await readState();
@@ -366,7 +379,7 @@ const deleteCategory = async (id) => {
 };
 const getProducts = async ({ includeHidden = false } = {}) => {
   const state=await readState();
-  return (state.products||[]).filter(p=>includeHidden||Number(p.is_published)===1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order));
+  return (state.products||[]).filter(p=>includeHidden||Number(p.is_published)===1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)).map(p=>({...p,image_alt:(state.media||[]).find(m=>(m.path&&m.path===p.image)||(m.url&&m.url===p.image))?.alt_text||p.name}));
 };
 const createProduct = async (payload) => {
   const state=await readState();state.products||=[];
@@ -438,7 +451,7 @@ const getWebsitePayload = async () => {
     services,
     projects,
     categories: (state.categories || []).filter((item) => Number(item.is_visible) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)),
-    products: (state.products || []).filter((item) => Number(item.is_published) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)).map((product) => ({ ...product, category: (state.categories || []).find((category) => Number(category.id) === Number(product.category_id)) || null })),
+    products: (state.products || []).filter((item) => Number(item.is_published) === 1).sort((a,b)=>Number(a.sort_order)-Number(b.sort_order)).map((product) => ({ ...product, image_alt: (state.media || []).find((m) => (m.path && m.path === product.image) || (m.url && m.url === product.image))?.alt_text || product.name, category: (state.categories || []).find((category) => Number(category.id) === Number(product.category_id)) || null })),
     about: state.pages?.about || { slug: 'about', title: 'About the studio', content: '' },
     contact: {
       email: settings.contact_email || defaultSettings.contact_email,
@@ -468,6 +481,7 @@ module.exports = {
   saveHomepageSections,
   getMedia,
   addMedia,
+  updateMedia,
   getAboutPage,
   saveAboutPage,
   getUserByEmail,
