@@ -56,6 +56,9 @@ const defaultState = {
     { id: 3, title: 'Forma Housing Concept', slug: 'forma-housing-concept', category: 'Industrial Design', description: 'An architectural product prototype designed for modular living components and rapid iteration.', cover_image: '/images/project-forma.svg', gallery: JSON.stringify(['/images/project-forma.svg']), model_url: '', featured: 1, is_published: 1, sort_order: 3 }
   ],
   media: [],
+  categories: [],
+  products: [],
+  orders: [],
   homepage_sections: [
     { id: 1, section_key: 'intro', title: 'Designing objects with intent.', subtitle: 'Material-led experimentation and precision manufacturing.', body: 'We create elegant, production-ready objects using additive manufacturing, industrial detailing and rapid iteration workflows.', image_url: '/images/intro.svg', cta_text: 'Learn more', cta_link: '/about', enabled: 1, sort_order: 1 },
     { id: 2, section_key: 'capabilities', title: 'Built for concept to production.', subtitle: 'Small batch. Fast turnarounds. High fidelity output.', body: 'From technical prototypes to refined final pieces, our studio bridges industrial design with fabrication expertise.', image_url: '/images/capabilities.svg', cta_text: 'See services', cta_link: '/services', enabled: 1, sort_order: 2 },
@@ -392,6 +395,7 @@ const createOrder = async (payload) => {
   const id=state.orders.reduce((max,o)=>Math.max(max,Number(o.id)||0),0)+1;
   const order={id,order_number:'FH-'+String(id).padStart(5,'0'),customer_name:String(payload.customer_name||'').trim(),email:String(payload.email||'').trim().toLowerCase(),phone:String(payload.phone||'').trim(),address:String(payload.address||'').trim(),notes:String(payload.notes||'').trim(),items,total:Number(items.reduce((sum,x)=>sum+x.line_total,0).toFixed(2)),currency:String(payload.currency||'USD'),status:'pending',created_at:new Date().toISOString()};
   if(!order.customer_name||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(order.email)){const error=new Error('Enter your name and a valid email address.');error.status=400;throw error;}
+  for (const line of items) { const product=state.products.find(p=>Number(p.id)===line.product_id); product.stock=Number(product.stock)-line.quantity; }
   state.orders.push(order);await writeState(state);return order;
 };
 const getOrders = async () => (await readState()).orders||[];
