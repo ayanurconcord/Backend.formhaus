@@ -240,6 +240,22 @@ const updateMedia = async (id, payload = {}) => {
   if (payload.title !== undefined) item.title = String(payload.title).trim();
   if (payload.size !== undefined) item.size = Number(payload.size);
   if (payload.mimetype !== undefined) { item.mime_type = payload.mimetype; item.kind = payload.mimetype.startsWith('image/') ? 'image' : payload.mimetype.startsWith('video/') ? 'video' : 'asset'; }
+  if (payload.pathname !== undefined || payload.path !== undefined || payload.url !== undefined) {
+    const oldRefs = new Set([item.path, item.url].filter(Boolean));
+    const nextPath = payload.path ?? item.path;
+    const nextUrl = payload.url ?? item.url;
+    const replaceValue = (value) => oldRefs.has(value) ? (value === item.url ? nextUrl : nextPath) : value;
+    const replaceIn = (rows, keys) => (rows || []).forEach((row) => keys.forEach((key) => { if (typeof row[key] === 'string') row[key] = replaceValue(row[key]); }));
+    replaceIn(state.products, ['image']);
+    replaceIn(state.projects, ['cover_image']);
+    replaceIn(state.services, ['image', 'image_url']);
+    replaceIn(state.homepage_sections, ['image_url']);
+    replaceIn([state.settings || {}], ['logo_url', 'favicon_url']);
+    (state.projects || []).forEach((row) => { if (Array.isArray(row.gallery)) row.gallery = row.gallery.map(replaceValue); });
+    item.path = nextPath;
+    item.url = nextUrl;
+    item.pathname = payload.pathname ?? item.pathname;
+  }
   item.updated_at = new Date().toISOString();
   await writeState(state);
   return item;
