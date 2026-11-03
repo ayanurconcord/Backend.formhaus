@@ -36,7 +36,12 @@ dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const JWT_SECRET = process.env.JWT_SECRET || 'formhaus-dev-secret';
+const isProduction = process.env.NODE_ENV === 'production';
+const JWT_SECRET = process.env.JWT_SECRET || (isProduction ? '' : 'formhaus-dev-secret');
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET must be configured in production.');
+}
 const uploadDir = path.join(__dirname, 'uploads');
 const publicDir = path.join(__dirname, 'public');
 
@@ -71,11 +76,29 @@ const upload = multer({
   }
 });
 
-app.use(cors({ origin: true, credentials: true }));
+const configuredClientOrigins = (process.env.CLIENT_URL || '').split(',').map((origin) => origin.trim()).filter(Boolean);
+const allowedOrigins = new Set([
+  ...configuredClientOrigins,
+  'https://frontendformhaus-1q7l7i9rz-formhaus1.vercel.app',
+  'https://backend-formhaus.vercel.app',
+  ...(!isProduction ? ['http://localhost:3000', 'http://127.0.0.1:3000'] : [])
+]);
+
+app.use(cors({
+  credentials: true,
+  origin: (origin, callback) => {
+    // Allow non-browser clients such as health checks and server-to-server requests.
+    if (!origin || allowedOrigins.has(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error('Origin not allowed by CORS'));
+  }
+}));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan('dev'));
 app.use('/uploads', express.static(uploadDir));
+app.get('/admin', (_req, res) => res.redirect(302, '/admin/'));
 app.use('/admin', express.static(path.join(publicDir, 'admin')));
 
 const authMiddleware = (req, res, next) => {
